@@ -1,0 +1,10 @@
+[package]
+name = "license-tool"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0"
+cargo_metadata = "0.15"
+serde = "1.0"
+toml = "0.7"
