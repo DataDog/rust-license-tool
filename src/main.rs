@@ -1,13 +1,19 @@
 use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::{fs, io, io::ErrorKind};
 
 use anyhow::{bail, Context, Result};
 use cargo_metadata::{
     DepKindInfo, DependencyKind, MetadataCommand, Node, Package, PackageId, Resolve,
 };
+use once_cell::sync::Lazy;
+use regex::Regex;
 use serde::Deserialize;
+use serde_json::Value;
 
 const FILENAME: &str = "license-tool.toml";
+
+const COPYRIGHT_KEY: &str = "__COPYRIGHT__";
 
 #[derive(Default, Deserialize)]
 struct Config {
@@ -58,7 +64,8 @@ fn main() -> Result<()> {
         .context("Metadata is missing a dependency tree")?;
     rewrite_packages(&mut metadata.packages, &config.overrides)?;
     let filtered = filter_deps(resolve);
-    let packages = lookup_deps(filtered, metadata.packages);
+    let mut packages = lookup_deps(filtered, metadata.packages);
+    lookup_all_copyrights(&mut packages)?;
     output_table(packages)
 }
 
@@ -122,13 +129,19 @@ fn output_table(mut packages: Vec<Package>) -> Result<()> {
     packages.sort_by(|a, b| a.name.cmp(&b.name));
     let mut csv = csv::Writer::from_writer(io::stdout());
 
-    csv.write_record(&["Component", "Origin", "License", "Copyright"])?;
+    csv.write_record(["Component", "Origin", "License", "Copyright"])?;
     for package in packages {
         // These are fixed up in `rewrite_packages` so we can just `unwrap` with impunity here.
         let repository = package.repository.as_deref().unwrap();
         let license = package.license.as_deref().unwrap();
-        let copyright = "TODO";
-        csv.write_record(&[&package.name, repository, &license, &copyright])?;
+        let name = package.name;
+        let copyright = package
+            .metadata
+            .get(COPYRIGHT_KEY)
+            .unwrap_or_else(|| panic!("Copyright for {name} should have been set"))
+            .as_str()
+            .expect("Copyright is always set to a string");
+        csv.write_record([&name, repository, &license, copyright])?;
     }
     csv.flush().map_err(Into::into)
 }
@@ -174,3 +187,92 @@ fn strip_git(s: &str) -> &'_ str {
 fn strip_suffix<'a>(s: &'a str, suffix: &str) -> &'a str {
     s.strip_suffix(suffix).unwrap_or(s)
 }
+
+// Look through the source files of every package to find something that looks like a copyright
+// line, and store the result into the package metadata.
+fn lookup_all_copyrights(packages: &mut [Package]) -> Result<()> {
+    for package in packages {
+        let copyright = Value::String(lookup_copyrights(package)?);
+        let key = COPYRIGHT_KEY.to_string();
+        match &mut package.metadata {
+            Value::Null => {
+                package.metadata = Value::Object([(key, copyright)].into_iter().collect())
+            }
+            Value::Object(map) => {
+                map.insert(key, copyright);
+            }
+            _ => panic!("Package metadata must be an object"),
+        }
+    }
+    Ok(())
+}
+
+fn lookup_copyrights(package: &mut Package) -> Result<String> {
+    let mut source_path = PathBuf::from(&package.manifest_path);
+    source_path.pop();
+    if let Some(filename) = &package.license_file {
+        if let Some(copyright) = lookup_copyright(filename.as_std_path())? {
+            return Ok(copyright);
+        }
+    }
+    for location in COPYRIGHT_LOCATIONS {
+        let path = source_path.join(location);
+        if path.exists() {
+            if let Some(copyright) = lookup_copyright(&path)? {
+                return Ok(copyright);
+            }
+        }
+    }
+    Ok(if package.authors.is_empty() {
+        "NOT FOUND".into()
+    } else {
+        package.authors.join(", ")
+    })
+}
+
+fn lookup_copyright(path: &Path) -> Result<Option<String>> {
+    let text = fs::read_to_string(path).with_context(|| format!("Could not read {path:?}"))?;
+    if let Some(found) = RE_COPYRIGHT.captures(&text) {
+        let copyright = &found[0];
+        if !RE_COPYRIGHT_IGNORE.is_match(copyright) {
+            return Ok(Some(copyright.into()));
+        }
+    }
+    Ok(None)
+}
+
+// Files searched for copyright notices
+const COPYRIGHT_LOCATIONS: [&str; 17] = [
+    "license",
+    "LICENSE",
+    "license.md",
+    "LICENSE.md",
+    "LICENSE.txt",
+    "License.txt",
+    "license.txt",
+    "LICENSE-APACHE",
+    "LICENSE-MIT",
+    "COPYING",
+    "NOTICE",
+    "README",
+    "README.md",
+    "README.mdown",
+    "README.markdown",
+    "COPYRIGHT",
+    "COPYRIGHT.txt",
+];
+
+// General match for anything that looks like a copyright declaration
+static RE_COPYRIGHT: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"(?i)copyright\s+(?:©|\(c\)\s+)?(?:(?:[0-9 ,-]|present)+\s+)?(?:by\s+)?.*$")
+        .unwrap()
+});
+
+// Copyright strings to ignore, as they are not owners.  Most of these are from
+// boilerplate license files.
+//
+// These match at the beginning of the copyright (the result of COPYRIGHT_RE).
+static RE_COPYRIGHT_IGNORE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+    r"(?i)^(copyright(:? and license)?$|copyright (:?holder|owner|notice|license|statement)|Copyright & License -|copyright .yyyy. .name of copyright owner)").unwrap()
+});
