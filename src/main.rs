@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::{borrow::Cow, fs, io::ErrorKind};
+use std::{fs, io, io::ErrorKind};
 
 use anyhow::{bail, Context, Result};
 use cargo_metadata::{
@@ -59,8 +59,7 @@ fn main() -> Result<()> {
     rewrite_packages(&mut metadata.packages, &config.overrides)?;
     let filtered = filter_deps(resolve);
     let packages = lookup_deps(filtered, metadata.packages);
-    output_table(packages);
-    Ok(())
+    output_table(packages)
 }
 
 // Given a list of package IDs, look up the corresponding entry from the package list and return an
@@ -119,23 +118,19 @@ fn is_normal_dep(kinds: &[DepKindInfo]) -> bool {
 }
 
 // Dump the resulting CSV table of packages, sorting them by the package name.
-fn output_table(mut packages: Vec<Package>) {
+fn output_table(mut packages: Vec<Package>) -> Result<()> {
     packages.sort_by(|a, b| a.name.cmp(&b.name));
+    let mut csv = csv::Writer::from_writer(io::stdout());
 
-    println!("Component,Origin,License,Copyright");
+    csv.write_record(&["Component", "Origin", "License", "Copyright"])?;
     for package in packages {
         // These are fixed up in `rewrite_packages` so we can just `unwrap` with impunity here.
         let repository = package.repository.as_deref().unwrap();
         let license = package.license.as_deref().unwrap();
         let copyright = "TODO";
-        println!(
-            "{},{},{},{}",
-            quote(&package.name),
-            quote(repository),
-            quote(license),
-            quote(copyright)
-        );
+        csv.write_record(&[&package.name, repository, &license, &copyright])?;
     }
+    csv.flush().map_err(Into::into)
 }
 
 // Rewrite package repository and check presence of licenses
@@ -178,12 +173,4 @@ fn strip_git(s: &str) -> &'_ str {
 
 fn strip_suffix<'a>(s: &'a str, suffix: &str) -> &'a str {
     s.strip_suffix(suffix).unwrap_or(s)
-}
-
-fn quote(s: &str) -> Cow<'_, str> {
-    if s.contains(',') {
-        todo!()
-    } else {
-        s.into()
-    }
 }
