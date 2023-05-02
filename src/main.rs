@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{hash_map::Entry, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::{fs, io, io::ErrorKind};
 
@@ -14,6 +14,16 @@ use serde_json::Value;
 const FILENAME: &str = "license-tool.toml";
 
 const COPYRIGHT_KEY: &str = "__COPYRIGHT__";
+
+#[derive(Deserialize)]
+struct Manifest {
+    package: ManifestPackage,
+}
+
+#[derive(Deserialize)]
+struct ManifestPackage {
+    name: String,
+}
 
 #[derive(Default, Deserialize)]
 struct Config {
@@ -65,6 +75,7 @@ fn main() -> Result<()> {
     rewrite_packages(&mut metadata.packages, &config.overrides)?;
     let filtered = filter_deps(resolve);
     let mut packages = lookup_deps(filtered, metadata.packages);
+    fixup_names(&mut packages)?;
     lookup_all_copyrights(&mut packages)?;
     output_table(packages)
 }
@@ -78,42 +89,28 @@ fn lookup_deps(list: HashSet<PackageId>, packages: Vec<Package>) -> Vec<Package>
         .collect();
 
     // Use the repository URL as a key to reduce common packages to a single entry
-    let mut result = HashMap::<String, Vec<Package>>::new();
+    let mut result = HashMap::<String, Package>::new();
     for package in list {
         let package = packages.remove(&package).unwrap();
         let key = package
             .repository
             .clone()
             .unwrap_or_else(|| panic!("Missing repository for {}", package.name));
-        result.entry(key).or_insert_with(Vec::new).push(package);
-    }
-    result.into_iter().map(select_package).collect()
-}
-
-// Select out the most likely named package from the set of packages.
-fn select_package(item: (String, Vec<Package>)) -> Package {
-    let (repository, packages) = item;
-    // Convert packages into a map to simplify the lookups
-    let mut packages: HashMap<_, _> = packages.into_iter().map(|p| (p.name.clone(), p)).collect();
-    // Try the simplest name matching the repository suffix.
-    let name = repository.rsplit_once('/').map(|(_, b)| b).unwrap();
-    if let Some(package) = packages.remove(name) {
-        return package;
-    }
-    // Try with a common `rust-` prefix
-    if let Some(name) = name.strip_prefix("rust-") {
-        if let Some(package) = packages.remove(name) {
-            return package;
+        match result.entry(key) {
+            Entry::Vacant(entry) => {
+                entry.insert(package);
+            }
+            Entry::Occupied(mut entry) => {
+                // Replace the package with the one with the shortest name, on the assumption that
+                // multiple packages sharing the same repository will all have names that are
+                // derivatives of the base name with affixes.
+                if package.name.len() < entry.get().name.len() {
+                    entry.insert(package);
+                }
+            }
         }
     }
-    // Look for a package name ending with or starting with the repository name
-    if let Some(key) = packages.keys().find(|key| key.ends_with(name)).cloned() {
-        return packages.remove(&key).unwrap();
-    }
-    if let Some(key) = packages.keys().find(|key| key.starts_with(name)).cloned() {
-        return packages.remove(&key).unwrap();
-    }
-    panic!("Could not determine best package for {repository}");
+    result.into_values().collect()
 }
 
 // Filter the list of dependencies to exclude those that would not be distributed in a built
@@ -158,7 +155,7 @@ fn output_table(mut packages: Vec<Package>) -> Result<()> {
     for package in packages {
         // These are fixed up in `rewrite_packages` so we can just `unwrap` with impunity here.
         let repository = package.repository.as_deref().unwrap();
-        let license = package.license.as_deref().unwrap();
+        let license = package.license.as_deref().unwrap().replace('/', " OR ");
         let name = package.name;
         let copyright = package
             .metadata
@@ -213,6 +210,18 @@ fn strip_suffix<'a>(s: &'a str, suffix: &str) -> &'a str {
     s.strip_suffix(suffix).unwrap_or(s)
 }
 
+fn fixup_names(packages: &mut [Package]) -> Result<()> {
+    for package in packages {
+        let path = &package.manifest_path;
+        let text = fs::read_to_string(path)
+            .with_context(|| format!("Could not read manifest in {path:?}"))?;
+        let manifest: Manifest = toml::from_str(&text)
+            .with_context(|| format!("Could not parse manifest in {path:?}"))?;
+        package.name = manifest.package.name;
+    }
+    Ok(())
+}
+
 // Look through the source files of every package to find something that looks like a copyright
 // line, and store the result into the package metadata.
 fn lookup_all_copyrights(packages: &mut [Package]) -> Result<()> {
@@ -249,7 +258,7 @@ fn lookup_copyrights(package: &mut Package) -> Result<String> {
         }
     }
     Ok(if package.authors.is_empty() {
-        "NOT FOUND".into()
+        format!("The {} Authors", package.name)
     } else {
         package.authors.join(", ")
     })
