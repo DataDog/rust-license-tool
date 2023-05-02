@@ -77,18 +77,43 @@ fn lookup_deps(list: HashSet<PackageId>, packages: Vec<Package>) -> Vec<Package>
         .map(|package| (package.id.clone(), package))
         .collect();
 
-    // Use the repository URL as a key to reduce common packages
-    let mut result = HashMap::<String, Package>::new();
+    // Use the repository URL as a key to reduce common packages to a single entry
+    let mut result = HashMap::<String, Vec<Package>>::new();
     for package in list {
         let package = packages.remove(&package).unwrap();
         let key = package
             .repository
             .clone()
-            // If there is no repository given, use the package name as the unique key.
-            .unwrap_or_else(|| format!("UNKNOWN::{}", package.name));
-        result.entry(key).or_insert(package);
+            .unwrap_or_else(|| panic!("Missing repository for {}", package.name));
+        result.entry(key).or_insert_with(Vec::new).push(package);
     }
-    result.into_values().collect()
+    result.into_iter().map(select_package).collect()
+}
+
+// Select out the most likely named package from the set of packages.
+fn select_package(item: (String, Vec<Package>)) -> Package {
+    let (repository, packages) = item;
+    // Convert packages into a map to simplify the lookups
+    let mut packages: HashMap<_, _> = packages.into_iter().map(|p| (p.name.clone(), p)).collect();
+    // Try the simplest name matching the repository suffix.
+    let name = repository.rsplit_once('/').map(|(_, b)| b).unwrap();
+    if let Some(package) = packages.remove(name) {
+        return package;
+    }
+    // Try with a common `rust-` prefix
+    if let Some(name) = name.strip_prefix("rust-") {
+        if let Some(package) = packages.remove(name) {
+            return package;
+        }
+    }
+    // Look for a package name ending with or starting with the repository name
+    if let Some(key) = packages.keys().find(|key| key.ends_with(name)).cloned() {
+        return packages.remove(&key).unwrap();
+    }
+    if let Some(key) = packages.keys().find(|key| key.starts_with(name)).cloned() {
+        return packages.remove(&key).unwrap();
+    }
+    panic!("Could not determine best package for {repository}");
 }
 
 // Filter the list of dependencies to exclude those that would not be distributed in a built
