@@ -1,6 +1,7 @@
 use std::collections::{hash_map::Entry, HashMap, HashSet};
+use std::fs;
+use std::io::{self, ErrorKind, Write};
 use std::path::{Path, PathBuf};
-use std::{fs, io, io::ErrorKind};
 
 use anyhow::{bail, Context, Result};
 use cargo_metadata::{
@@ -66,6 +67,13 @@ struct Config {
     overrides: Overrides,
 }
 
+struct Record {
+    component: String,
+    origin: String,
+    license: String,
+    copyright: String,
+}
+
 impl Config {
     fn load() -> Result<Option<Self>> {
         match fs::read_to_string(FILENAME) {
@@ -113,7 +121,8 @@ fn main() -> Result<()> {
     let mut packages = lookup_deps(filtered, metadata.packages);
     fixup_names(&mut packages)?;
     lookup_all_copyrights(&mut packages)?;
-    output_table(packages)
+    let records = build_records(packages);
+    output_table(records, io::stdout())
 }
 
 // Given a list of package IDs, look up the corresponding entry from the package list and return an
@@ -182,24 +191,43 @@ fn is_normal_dep(kinds: &[DepKindInfo]) -> bool {
     kinds.iter().any(|dep| dep.kind == DependencyKind::Normal)
 }
 
-// Dump the resulting CSV table of packages, sorting them by the package name.
-fn output_table(mut packages: Vec<Package>) -> Result<()> {
+fn build_records(mut packages: Vec<Package>) -> Vec<Record> {
     packages.sort_by(|a, b| a.name.cmp(&b.name));
-    let mut csv = csv::Writer::from_writer(io::stdout());
+    packages
+        .into_iter()
+        .map(|package| {
+            // These are fixed up in `rewrite_packages` so we can just `unwrap` with impunity here.
+            let origin = package.repository.as_deref().unwrap().to_string();
+            let license = package.license.as_deref().unwrap().replace('/', " OR ");
+            let component = package.name;
+            let copyright = package
+                .metadata
+                .get(COPYRIGHT_KEY)
+                .unwrap_or_else(|| panic!("Copyright for {component} should have been set"))
+                .as_str()
+                .expect("Copyright is always set to a string")
+                .into();
+            Record {
+                component,
+                origin,
+                license,
+                copyright,
+            }
+        })
+        .collect()
+}
 
+// Dump the resulting CSV table of records.
+fn output_table(records: Vec<Record>, writer: impl Write) -> Result<()> {
+    let mut csv = csv::Writer::from_writer(writer);
     csv.write_record(["Component", "Origin", "License", "Copyright"])?;
-    for package in packages {
-        // These are fixed up in `rewrite_packages` so we can just `unwrap` with impunity here.
-        let repository = package.repository.as_deref().unwrap();
-        let license = package.license.as_deref().unwrap().replace('/', " OR ");
-        let name = package.name;
-        let copyright = package
-            .metadata
-            .get(COPYRIGHT_KEY)
-            .unwrap_or_else(|| panic!("Copyright for {name} should have been set"))
-            .as_str()
-            .expect("Copyright is always set to a string");
-        csv.write_record([&name, repository, &license, copyright])?;
+    for record in records {
+        csv.write_record([
+            &record.component,
+            &record.origin,
+            &record.license,
+            &record.copyright,
+        ])?;
     }
     csv.flush().map_err(Into::into)
 }
