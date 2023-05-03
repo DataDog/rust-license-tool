@@ -1,0 +1,56 @@
+name: Test Suite
+
+on:
+  pull_request:
+  merge_group:
+    types: [checks_requested]
+  push:
+    branches:
+      - main
+
+concurrency:
+  # For pull requests, cancel running workflows, for main, run all
+  #
+  # `github.event.number` exists for pull requests, otherwise fall back to SHA
+  # for main
+  group: ${{ github.workflow }}-${{ github.event.number || github.sha }}
+  cancel-in-progress: true
+
+env:
+  RUST_BACKTRACE: full
+  VERBOSE: true
+  CI: true
+  PROFILE: debug
+
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
+      - name: "fmt"
+        run: cargo fmt --check
+
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
+      - name: "clippy"
+        run: cargo clippy --all-targets -- -D warnings
+
+  check-licenses:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
+      - name: "check licenses"
+        run: cargo run > LICENSE-3rdparty.new && diff -u LICENSE-3rdparty.csv LICENSE-3rdparty.new
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
+      - name: "test"
+        run: cargo test --workspace
