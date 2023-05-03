@@ -15,6 +15,42 @@ const FILENAME: &str = "license-tool.toml";
 
 const COPYRIGHT_KEY: &str = "__COPYRIGHT__";
 
+// Files searched for copyright notices
+const COPYRIGHT_LOCATIONS: [&str; 17] = [
+    "license",
+    "LICENSE",
+    "license.md",
+    "LICENSE.md",
+    "LICENSE.txt",
+    "License.txt",
+    "license.txt",
+    "LICENSE-APACHE",
+    "LICENSE-MIT",
+    "COPYING",
+    "NOTICE",
+    "README",
+    "README.md",
+    "README.mdown",
+    "README.markdown",
+    "COPYRIGHT",
+    "COPYRIGHT.txt",
+];
+
+// General match for anything that looks like a copyright declaration
+static RE_COPYRIGHT: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"(?i)copyright\s+(?:©|\(c\)\s+)?(?:(?:[0-9 ,-]|present)+\s+)?(?:by\s+)?.*$")
+        .unwrap()
+});
+
+// Copyright strings to ignore, as they are not owners.  Most of these are from
+// boilerplate license files.
+//
+// These match at the beginning of the copyright (the result of COPYRIGHT_RE).
+static RE_COPYRIGHT_IGNORE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+    r"(?i)^(copyright(:? and license)?$|copyright (:?holder|owner|notice|license|statement)|Copyright & License -|copyright .yyyy. .name of copyright owner)").unwrap()
+});
+
 #[derive(Deserialize)]
 struct Manifest {
     package: ManifestPackage,
@@ -274,39 +310,3 @@ fn lookup_copyright(path: &Path) -> Result<Option<String>> {
     }
     Ok(None)
 }
-
-// Files searched for copyright notices
-const COPYRIGHT_LOCATIONS: [&str; 17] = [
-    "license",
-    "LICENSE",
-    "license.md",
-    "LICENSE.md",
-    "LICENSE.txt",
-    "License.txt",
-    "license.txt",
-    "LICENSE-APACHE",
-    "LICENSE-MIT",
-    "COPYING",
-    "NOTICE",
-    "README",
-    "README.md",
-    "README.mdown",
-    "README.markdown",
-    "COPYRIGHT",
-    "COPYRIGHT.txt",
-];
-
-// General match for anything that looks like a copyright declaration
-static RE_COPYRIGHT: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"(?i)copyright\s+(?:©|\(c\)\s+)?(?:(?:[0-9 ,-]|present)+\s+)?(?:by\s+)?.*$")
-        .unwrap()
-});
-
-// Copyright strings to ignore, as they are not owners.  Most of these are from
-// boilerplate license files.
-//
-// These match at the beginning of the copyright (the result of COPYRIGHT_RE).
-static RE_COPYRIGHT_IGNORE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(
-    r"(?i)^(copyright(:? and license)?$|copyright (:?holder|owner|notice|license|statement)|Copyright & License -|copyright .yyyy. .name of copyright owner)").unwrap()
-});
