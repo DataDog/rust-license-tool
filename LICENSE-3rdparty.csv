@@ -1,11 +1,17 @@
 Component,Origin,License,Copyright
 aho-corasick,https://github.com/BurntSushi/aho-corasick,Unlicense OR MIT,Andrew Gallant <jamslam@gmail.com>
+anstyle,https://github.com/rust-cli/anstyle,MIT OR Apache-2.0,The anstyle Authors
 anyhow,https://github.com/dtolnay/anyhow,MIT OR Apache-2.0,David Tolnay <dtolnay@gmail.com>
+bitflags,https://github.com/bitflags/bitflags,MIT OR Apache-2.0,The Rust Project Developers
 camino,https://github.com/camino-rs/camino,MIT OR Apache-2.0,"Without Boats <saoirse@without.boats>, Ashley Williams <ashley666ashley@gmail.com>, Steve Klabnik <steve@steveklabnik.com>, Rain <rain@sunshowers.io>"
 cargo-platform,https://github.com/rust-lang/cargo,MIT OR Apache-2.0,The Cargo Project Developers
 cargo_metadata,https://github.com/oli-obk/cargo_metadata,MIT,Oliver Schneider <git-spam-no-reply9815368754983@oli-obk.de>
+clap,https://github.com/clap-rs/clap,MIT OR Apache-2.0,The clap Authors
+clap_derive,https://github.com/clap-rs/clap/tree/master/clap_derive,MIT OR Apache-2.0,The clap_derive Authors
+clap_lex,https://github.com/clap-rs/clap/tree/master/clap_lex,MIT OR Apache-2.0,The clap_lex Authors
 csv,https://github.com/BurntSushi/rust-csv,Unlicense OR MIT,Andrew Gallant <jamslam@gmail.com>
 hashbrown,https://github.com/rust-lang/hashbrown,MIT OR Apache-2.0,Amanieu d'Antras <amanieu@gmail.com>
+heck,https://github.com/withoutboats/heck,MIT OR Apache-2.0,Without Boats <woboats@gmail.com>
 hex,https://github.com/KokaKiwi/rust-hex,MIT OR Apache-2.0,KokaKiwi <kokakiwi@kokakiwi.net>
 indexmap,https://github.com/bluss/indexmap,Apache-2.0 OR MIT,The indexmap Authors
 itoa,https://github.com/dtolnay/itoa,MIT OR Apache-2.0,David Tolnay <dtolnay@gmail.com>

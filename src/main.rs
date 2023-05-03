@@ -7,6 +7,7 @@ use anyhow::{bail, Context, Result};
 use cargo_metadata::{
     DepKindInfo, DependencyKind, MetadataCommand, Node, Package, PackageId, Resolve,
 };
+use clap::{Parser, Subcommand};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::Deserialize;
@@ -51,6 +52,18 @@ static RE_COPYRIGHT_IGNORE: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
     r"(?i)^(copyright(:? and license)?$|copyright (:?holder|owner|notice|license|statement)|Copyright & License -|copyright .yyyy. .name of copyright owner)").unwrap()
 });
+
+#[derive(Debug, Parser)]
+struct Args {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Debug, Subcommand)]
+enum Commands {
+    /// Dump the generated license data to standard output.
+    Dump,
+}
 
 #[derive(Deserialize)]
 struct Manifest {
@@ -106,6 +119,14 @@ impl Override {
 }
 
 fn main() -> Result<()> {
+    let args = Args::parse();
+
+    match args.command {
+        Commands::Dump => output_table(build_everything()?, io::stdout()),
+    }
+}
+
+fn build_everything() -> Result<Vec<Record>> {
     let config = Config::load()?.unwrap_or_default();
 
     let mut metadata = MetadataCommand::new()
@@ -121,8 +142,7 @@ fn main() -> Result<()> {
     let mut packages = lookup_deps(filtered, metadata.packages);
     fixup_names(&mut packages)?;
     lookup_all_copyrights(&mut packages)?;
-    let records = build_records(packages);
-    output_table(records, io::stdout())
+    Ok(build_records(packages))
 }
 
 // Given a list of package IDs, look up the corresponding entry from the package list and return an
