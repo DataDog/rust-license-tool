@@ -10,7 +10,7 @@ use cargo_metadata::{
 use clap::{Parser, Subcommand};
 use once_cell::sync::Lazy;
 use regex::Regex;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 const DEST_FILENAME: &str = "LICENSE-3rdparty.csv";
@@ -67,6 +67,8 @@ enum Commands {
     Dump,
     /// Write the generated license data to the file.
     Write,
+    /// Check that the license data is up to date.
+    Check,
 }
 
 #[derive(Deserialize)]
@@ -84,6 +86,8 @@ struct Config {
     overrides: Overrides,
 }
 
+#[derive(Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "PascalCase")]
 struct Record {
     component: String,
     origin: String,
@@ -125,16 +129,60 @@ impl Override {
 
 fn main() -> Result<()> {
     let args = Args::parse();
+    args.command.doit(build_everything()?)
+}
 
-    match args.command {
-        Commands::Dump => output_table(build_everything()?, io::stdout()),
-        Commands::Write => {
-            let temp_filename = format!("{DEST_FILENAME}.tmp.{}", std::process::id());
-            let out = File::create(&temp_filename)
-                .with_context(|| format!("Could not create {temp_filename:?}"))?;
-            output_table(build_everything()?, out)?;
-            fs::rename(&temp_filename, DEST_FILENAME)
-                .with_context(|| format!("Could not rename {temp_filename:?} to {DEST_FILENAME:?}"))
+impl Commands {
+    fn doit(self, records: Vec<Record>) -> Result<()> {
+        match self {
+            Self::Dump => output_table(records, io::stdout()),
+            Self::Write => Self::write(records),
+            Self::Check => Self::check(records),
+        }
+    }
+
+    fn write(records: Vec<Record>) -> Result<()> {
+        let temp_filename = format!("{DEST_FILENAME}.tmp.{}", std::process::id());
+        let out = File::create(&temp_filename)
+            .with_context(|| format!("Could not create {temp_filename:?}"))?;
+        output_table(records, out)?;
+        fs::rename(&temp_filename, DEST_FILENAME)
+            .with_context(|| format!("Could not rename {temp_filename:?} to {DEST_FILENAME:?}"))
+    }
+
+    fn check(records: Vec<Record>) -> Result<()> {
+        let mut current: HashMap<String, Record> = match File::open(DEST_FILENAME) {
+            Err(error) if error.kind() == ErrorKind::NotFound => Default::default(),
+            Err(error) => return Err(error).context(format!("Could not read {DEST_FILENAME:?}")),
+            Ok(file) => csv::Reader::from_reader(file)
+                .into_deserialize()
+                .map(|record| record.map(|record: Record| (record.component.clone(), record)))
+                .collect::<Result<_, _>>()
+                .with_context(|| format!("Could not read current {DEST_FILENAME:?}"))?,
+        };
+        let mut errors = false;
+        for record in records {
+            let component = &record.component;
+            if let Some(current) = current.remove(component) {
+                if current != record {
+                    println!("Record for {component:?} has changed.");
+                    errors = true;
+                }
+            } else {
+                println!("Missing record for {component:?}.");
+                errors = true;
+            }
+        }
+        if !current.is_empty() {
+            for record in current.values() {
+                println!("Extraneous record for {:?}.", record.component);
+            }
+            errors = true;
+        }
+        if errors {
+            bail!("Current {DEST_FILENAME:?} is not up to date.")
+        } else {
+            Ok(())
         }
     }
 }
@@ -253,14 +301,8 @@ fn build_records(mut packages: Vec<Package>) -> Vec<Record> {
 // Dump the resulting CSV table of records.
 fn output_table(records: Vec<Record>, writer: impl Write) -> Result<()> {
     let mut csv = csv::Writer::from_writer(writer);
-    csv.write_record(["Component", "Origin", "License", "Copyright"])?;
     for record in records {
-        csv.write_record([
-            &record.component,
-            &record.origin,
-            &record.license,
-            &record.copyright,
-        ])?;
+        csv.serialize(record)?;
     }
     csv.flush().map_err(Into::into)
 }
