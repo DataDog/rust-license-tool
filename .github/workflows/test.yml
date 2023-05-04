@@ -45,7 +45,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: Swatinem/rust-cache@v2
       - name: "check licenses"
-        run: cp LICENSE-3rdparty.csv LICENSE-3rdparty.bak && cargo run -- write && diff -u LICENSE-3rdparty.bak LICENSE-3rdparty.csv
+        run: cargo run -- check
 
   test:
     runs-on: ubuntu-latest
