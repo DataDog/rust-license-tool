@@ -1,17 +1,21 @@
 use std::collections::{hash_map::Entry, HashMap, HashSet};
+use std::fs::{self, File};
+use std::io::{self, ErrorKind, Write};
 use std::path::{Path, PathBuf};
-use std::{fs, io, io::ErrorKind};
 
 use anyhow::{bail, Context, Result};
 use cargo_metadata::{
     DepKindInfo, DependencyKind, MetadataCommand, Node, Package, PackageId, Resolve,
 };
+use clap::{Parser, Subcommand};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::Deserialize;
 use serde_json::Value;
 
-const FILENAME: &str = "license-tool.toml";
+const DEST_FILENAME: &str = "LICENSE-3rdparty.csv";
+
+const CONFIG_FILENAME: &str = "license-tool.toml";
 
 const COPYRIGHT_KEY: &str = "__COPYRIGHT__";
 
@@ -51,6 +55,20 @@ static RE_COPYRIGHT_IGNORE: Lazy<Regex> = Lazy::new(|| {
     r"(?i)^(copyright(:? and license)?$|copyright (:?holder|owner|notice|license|statement)|Copyright & License -|copyright .yyyy. .name of copyright owner)").unwrap()
 });
 
+#[derive(Debug, Parser)]
+struct Args {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Debug, Subcommand)]
+enum Commands {
+    /// Dump the generated license data to standard output.
+    Dump,
+    /// Write the generated license data to the file.
+    Write,
+}
+
 #[derive(Deserialize)]
 struct Manifest {
     package: ManifestPackage,
@@ -66,14 +84,22 @@ struct Config {
     overrides: Overrides,
 }
 
+struct Record {
+    component: String,
+    origin: String,
+    license: String,
+    copyright: String,
+}
+
 impl Config {
     fn load() -> Result<Option<Self>> {
-        match fs::read_to_string(FILENAME) {
-            Ok(text) => {
-                toml::from_str(&text).with_context(|| format!("Could not parse {FILENAME:?}"))
-            }
+        match fs::read_to_string(CONFIG_FILENAME) {
+            Ok(text) => toml::from_str(&text)
+                .with_context(|| format!("Could not parse {CONFIG_FILENAME:?}")),
             Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
-            Err(error) => Err(error).with_context(|| format!("Could not load from {FILENAME:?}")),
+            Err(error) => {
+                Err(error).with_context(|| format!("Could not load from {CONFIG_FILENAME:?}"))
+            }
         }
     }
 }
@@ -98,6 +124,22 @@ impl Override {
 }
 
 fn main() -> Result<()> {
+    let args = Args::parse();
+
+    match args.command {
+        Commands::Dump => output_table(build_everything()?, io::stdout()),
+        Commands::Write => {
+            let temp_filename = format!("{DEST_FILENAME}.tmp.{}", std::process::id());
+            let out = File::create(&temp_filename)
+                .with_context(|| format!("Could not create {temp_filename:?}"))?;
+            output_table(build_everything()?, out)?;
+            fs::rename(&temp_filename, DEST_FILENAME)
+                .with_context(|| format!("Could not rename {temp_filename:?} to {DEST_FILENAME:?}"))
+        }
+    }
+}
+
+fn build_everything() -> Result<Vec<Record>> {
     let config = Config::load()?.unwrap_or_default();
 
     let mut metadata = MetadataCommand::new()
@@ -113,7 +155,7 @@ fn main() -> Result<()> {
     let mut packages = lookup_deps(filtered, metadata.packages);
     fixup_names(&mut packages)?;
     lookup_all_copyrights(&mut packages)?;
-    output_table(packages)
+    Ok(build_records(packages))
 }
 
 // Given a list of package IDs, look up the corresponding entry from the package list and return an
@@ -182,24 +224,43 @@ fn is_normal_dep(kinds: &[DepKindInfo]) -> bool {
     kinds.iter().any(|dep| dep.kind == DependencyKind::Normal)
 }
 
-// Dump the resulting CSV table of packages, sorting them by the package name.
-fn output_table(mut packages: Vec<Package>) -> Result<()> {
+fn build_records(mut packages: Vec<Package>) -> Vec<Record> {
     packages.sort_by(|a, b| a.name.cmp(&b.name));
-    let mut csv = csv::Writer::from_writer(io::stdout());
+    packages
+        .into_iter()
+        .map(|package| {
+            // These are fixed up in `rewrite_packages` so we can just `unwrap` with impunity here.
+            let origin = package.repository.as_deref().unwrap().to_string();
+            let license = package.license.as_deref().unwrap().replace('/', " OR ");
+            let component = package.name;
+            let copyright = package
+                .metadata
+                .get(COPYRIGHT_KEY)
+                .unwrap_or_else(|| panic!("Copyright for {component} should have been set"))
+                .as_str()
+                .expect("Copyright is always set to a string")
+                .into();
+            Record {
+                component,
+                origin,
+                license,
+                copyright,
+            }
+        })
+        .collect()
+}
 
+// Dump the resulting CSV table of records.
+fn output_table(records: Vec<Record>, writer: impl Write) -> Result<()> {
+    let mut csv = csv::Writer::from_writer(writer);
     csv.write_record(["Component", "Origin", "License", "Copyright"])?;
-    for package in packages {
-        // These are fixed up in `rewrite_packages` so we can just `unwrap` with impunity here.
-        let repository = package.repository.as_deref().unwrap();
-        let license = package.license.as_deref().unwrap().replace('/', " OR ");
-        let name = package.name;
-        let copyright = package
-            .metadata
-            .get(COPYRIGHT_KEY)
-            .unwrap_or_else(|| panic!("Copyright for {name} should have been set"))
-            .as_str()
-            .expect("Copyright is always set to a string");
-        csv.write_record([&name, repository, &license, copyright])?;
+    for record in records {
+        csv.write_record([
+            &record.component,
+            &record.origin,
+            &record.license,
+            &record.copyright,
+        ])?;
     }
     csv.flush().map_err(Into::into)
 }
