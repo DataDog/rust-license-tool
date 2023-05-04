@@ -1,5 +1,5 @@
 use std::collections::{hash_map::Entry, HashMap, HashSet};
-use std::fs;
+use std::fs::{self, File};
 use std::io::{self, ErrorKind, Write};
 use std::path::{Path, PathBuf};
 
@@ -13,7 +13,9 @@ use regex::Regex;
 use serde::Deserialize;
 use serde_json::Value;
 
-const FILENAME: &str = "license-tool.toml";
+const DEST_FILENAME: &str = "LICENSE-3rdparty.csv";
+
+const CONFIG_FILENAME: &str = "license-tool.toml";
 
 const COPYRIGHT_KEY: &str = "__COPYRIGHT__";
 
@@ -63,6 +65,8 @@ struct Args {
 enum Commands {
     /// Dump the generated license data to standard output.
     Dump,
+    /// Write the generated license data to the file.
+    Write,
 }
 
 #[derive(Deserialize)]
@@ -89,12 +93,13 @@ struct Record {
 
 impl Config {
     fn load() -> Result<Option<Self>> {
-        match fs::read_to_string(FILENAME) {
-            Ok(text) => {
-                toml::from_str(&text).with_context(|| format!("Could not parse {FILENAME:?}"))
-            }
+        match fs::read_to_string(CONFIG_FILENAME) {
+            Ok(text) => toml::from_str(&text)
+                .with_context(|| format!("Could not parse {CONFIG_FILENAME:?}")),
             Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
-            Err(error) => Err(error).with_context(|| format!("Could not load from {FILENAME:?}")),
+            Err(error) => {
+                Err(error).with_context(|| format!("Could not load from {CONFIG_FILENAME:?}"))
+            }
         }
     }
 }
@@ -123,6 +128,14 @@ fn main() -> Result<()> {
 
     match args.command {
         Commands::Dump => output_table(build_everything()?, io::stdout()),
+        Commands::Write => {
+            let temp_filename = format!("{DEST_FILENAME}.tmp.{}", std::process::id());
+            let out = File::create(&temp_filename)
+                .with_context(|| format!("Could not create {temp_filename:?}"))?;
+            output_table(build_everything()?, out)?;
+            fs::rename(&temp_filename, DEST_FILENAME)
+                .with_context(|| format!("Could not rename {temp_filename:?} to {DEST_FILENAME:?}"))
+        }
     }
 }
 
