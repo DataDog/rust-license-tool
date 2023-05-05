@@ -23,8 +23,6 @@ file is required by the Datadog standards for releasing open source code.
 3. In your CI workflow, check that the licenses list file is up to date with:
    `rust-license-tool check`.
 
-TODO
-
 ## Related Projects
 
 There are other existing projects that come close to providing the data required for the above
