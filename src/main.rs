@@ -190,7 +190,7 @@ impl Commands {
 fn build_everything() -> Result<Vec<Record>> {
     let config = Config::load()?.unwrap_or_default();
 
-    let mut metadata = MetadataCommand::new()
+    let metadata = MetadataCommand::new()
         .verbose(true)
         .exec()
         .context("Running `cargo metadata` failed")?;
@@ -198,9 +198,9 @@ fn build_everything() -> Result<Vec<Record>> {
     let resolve = metadata
         .resolve
         .context("Metadata is missing a dependency tree")?;
-    rewrite_packages(&mut metadata.packages, &config.overrides)?;
     let filtered = filter_deps(resolve);
     let mut packages = lookup_deps(filtered, metadata.packages);
+    rewrite_packages(&mut packages, &config.overrides)?;
     fixup_names(&mut packages)?;
     lookup_all_copyrights(&mut packages)?;
     Ok(build_records(packages))
