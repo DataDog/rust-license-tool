@@ -3,8 +3,27 @@
 This project houses a tool for creating the `LICENSE-3rdparty.csv` file from Rust projects. This
 file is required by the Datadog standards for releasing open source code.
 
-This tool will eventually be extended include a no-modify mode to ensure the file is up to date, as
-well as license compliance testing.
+## Usage
+
+1. Install the tool using `cargo`:
+
+```
+# cargo install --path .
+  Installing rust-license-tool v0.1.0 (/home/user/rust-license-tool)
+    Updating crates.io index
+   Compiling rust-license-tool v0.1.0 (/home/user/rust-license-tool)
+    Finished release [optimized] target(s) in 2.56s
+  Installing /home/user/.cargo/bin/rust-license-tool
+   Installed package `rust-license-tool v0.1.0 (/home/user/rust-license-tool)` (executable `rust-license-tool`)
+```
+
+2. In your project directory, create the licenses list file with:
+   `rust-license-tool write`.
+
+3. In your CI workflow, check that the licenses list file is up to date with:
+   `rust-license-tool check`.
+
+TODO
 
 ## Related Projects
 
