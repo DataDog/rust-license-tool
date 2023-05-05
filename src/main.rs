@@ -218,6 +218,9 @@ fn lookup_deps(list: HashSet<PackageId>, packages: Vec<Package>) -> Vec<Package>
     let mut result = HashMap::<String, Package>::new();
     for package in list {
         let package = packages.remove(&package).unwrap();
+        if package.source.is_none() {
+            continue;
+        }
         let key = package
             .repository
             .clone()
