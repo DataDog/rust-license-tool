@@ -190,7 +190,7 @@ impl Commands {
 fn build_everything() -> Result<Vec<Record>> {
     let config = Config::load()?.unwrap_or_default();
 
-    let mut metadata = MetadataCommand::new()
+    let metadata = MetadataCommand::new()
         .verbose(true)
         .exec()
         .context("Running `cargo metadata` failed")?;
@@ -198,9 +198,9 @@ fn build_everything() -> Result<Vec<Record>> {
     let resolve = metadata
         .resolve
         .context("Metadata is missing a dependency tree")?;
-    rewrite_packages(&mut metadata.packages, &config.overrides)?;
     let filtered = filter_deps(resolve);
     let mut packages = lookup_deps(filtered, metadata.packages);
+    rewrite_packages(&mut packages, &config.overrides)?;
     fixup_names(&mut packages)?;
     lookup_all_copyrights(&mut packages)?;
     Ok(build_records(packages))
@@ -218,6 +218,9 @@ fn lookup_deps(list: HashSet<PackageId>, packages: Vec<Package>) -> Vec<Package>
     let mut result = HashMap::<String, Package>::new();
     for package in list {
         let package = packages.remove(&package).unwrap();
+        if package.source.is_none() {
+            continue;
+        }
         let key = package
             .repository
             .clone()
@@ -313,11 +316,14 @@ fn rewrite_packages(packages: &mut [Package], overrides: &Overrides) -> Result<(
     for package in packages {
         let name = format!("{}-{}", package.name, package.version);
 
-        if let Some(opts) = overrides.get(&name) {
+        if let Some(opts) = overrides
+            .get(&name)
+            .or_else(|| overrides.get(&package.name))
+        {
             opts.fixup(package);
         }
 
-        // Ignore local packages by skipping packages without a source.
+        // Don't rewrite local packages by skipping packages without a source.
         if let Some(source) = &package.source {
             if let Some(repo) = &mut package.repository {
                 *repo = strip_git(repo).to_owned();
