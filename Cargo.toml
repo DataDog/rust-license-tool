@@ -1,7 +1,12 @@
 [package]
-name = "license-tool"
+name = "rust-license-tool"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+authors = ["Datadog, Inc."]
+
+[profile.release]
+strip = true
 
 [dependencies]
 anyhow = "1.0"
