@@ -275,30 +275,31 @@ fn is_normal_dep(kinds: &[DepKindInfo]) -> bool {
     kinds.iter().any(|dep| dep.kind == DependencyKind::Normal)
 }
 
+// Translate the array of packages into an array of output records.
 fn build_records(mut packages: Vec<Package>) -> Vec<Record> {
     packages.sort_by(|a, b| a.name.cmp(&b.name));
-    packages
-        .into_iter()
-        .map(|package| {
-            // These are fixed up in `rewrite_packages` so we can just `unwrap` with impunity here.
-            let origin = package.repository.as_deref().unwrap().to_string();
-            let license = package.license.as_deref().unwrap().replace('/', " OR ");
-            let component = package.name;
-            let copyright = package
-                .metadata
-                .get(COPYRIGHT_KEY)
-                .unwrap_or_else(|| panic!("Copyright for {component} should have been set"))
-                .as_str()
-                .expect("Copyright is always set to a string")
-                .into();
-            Record {
-                component,
-                origin,
-                license,
-                copyright,
-            }
-        })
-        .collect()
+    packages.into_iter().map(package_to_record).collect()
+}
+
+// Extract the output record fields from a input package.
+fn package_to_record(package: Package) -> Record {
+    // These are fixed up in `rewrite_packages` so we can just `unwrap` with impunity here.
+    let origin = package.repository.as_deref().unwrap().to_string();
+    let license = package.license.as_deref().unwrap().replace('/', " OR ");
+    let component = package.name;
+    let copyright = package
+        .metadata
+        .get(COPYRIGHT_KEY)
+        .unwrap_or_else(|| panic!("Copyright for {component} should have been set"))
+        .as_str()
+        .expect("Copyright is always set to a string")
+        .into();
+    Record {
+        component,
+        origin,
+        license,
+        copyright,
+    }
 }
 
 // Dump the resulting CSV table of records.
