@@ -313,11 +313,14 @@ fn rewrite_packages(packages: &mut [Package], overrides: &Overrides) -> Result<(
     for package in packages {
         let name = format!("{}-{}", package.name, package.version);
 
-        if let Some(opts) = overrides.get(&name) {
+        if let Some(opts) = overrides
+            .get(&name)
+            .or_else(|| overrides.get(&package.name))
+        {
             opts.fixup(package);
         }
 
-        // Ignore local packages by skipping packages without a source.
+        // Don't rewrite local packages by skipping packages without a source.
         if let Some(source) = &package.source {
             if let Some(repo) = &mut package.repository {
                 *repo = strip_git(repo).to_owned();
