@@ -1,6 +1,7 @@
-use std::collections::{hash_map::Entry, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::{self, ErrorKind, Write};
+use std::mem::take;
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
@@ -86,7 +87,7 @@ struct Config {
     overrides: Overrides,
 }
 
-#[derive(Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Deserialize, Eq, Hash, PartialEq, Serialize)]
 #[serde(rename_all = "PascalCase")]
 struct Record {
     component: String,
@@ -208,38 +209,33 @@ fn build_everything() -> Result<Vec<Record>> {
 
 // Given a list of package IDs, look up the corresponding entry from the package list and return an
 // array of the results.
-fn lookup_deps(list: HashSet<PackageId>, packages: Vec<Package>) -> Vec<Package> {
-    let mut packages: HashMap<_, _> = packages
+fn lookup_deps(package_ids: HashSet<PackageId>, packages: Vec<Package>) -> Vec<Package> {
+    let packages: HashMap<_, _> = packages
         .into_iter()
         .map(|package| (package.id.clone(), package))
         .collect();
 
-    // Use the repository URL as a key to reduce common packages to a single entry
-    let mut result = HashMap::<String, Package>::new();
-    for package in list {
-        let package = packages.remove(&package).unwrap();
-        if package.source.is_none() {
-            continue;
-        }
+    collect_packages(package_ids, packages).flatten().collect()
+}
+
+// Collect packages based on their package Ids, grouped on their repository URLs.
+fn collect_packages(
+    package_ids: HashSet<PackageId>,
+    mut packages: HashMap<PackageId, Package>,
+) -> impl Iterator<Item = Vec<Package>> {
+    let packages = package_ids
+        .into_iter()
+        .map(|id| packages.remove(&id).expect("Missing package"))
+        .filter(|package| package.source.is_some());
+    let mut result: HashMap<String, Vec<Package>> = HashMap::default();
+    for package in packages {
         let key = package
             .repository
             .clone()
             .unwrap_or_else(|| panic!("Missing repository for {}", package.name));
-        match result.entry(key) {
-            Entry::Vacant(entry) => {
-                entry.insert(package);
-            }
-            Entry::Occupied(mut entry) => {
-                // Replace the package with the one with the shortest name, on the assumption that
-                // multiple packages sharing the same repository will all have names that are
-                // derivatives of the base name with affixes.
-                if package.name.len() < entry.get().name.len() {
-                    entry.insert(package);
-                }
-            }
-        }
+        result.entry(key).or_insert_with(Vec::new).push(package);
     }
-    result.into_values().collect()
+    result.into_values()
 }
 
 // Filter the list of dependencies to exclude those that would not be distributed in a built
@@ -275,30 +271,90 @@ fn is_normal_dep(kinds: &[DepKindInfo]) -> bool {
     kinds.iter().any(|dep| dep.kind == DependencyKind::Normal)
 }
 
-fn build_records(mut packages: Vec<Package>) -> Vec<Record> {
-    packages.sort_by(|a, b| a.name.cmp(&b.name));
-    packages
+// Translate the array of packages into an array of output records.
+fn build_records(packages: Vec<Package>) -> Vec<Record> {
+    let records = packages.into_iter().map(package_to_record);
+    let mut result: Vec<Record> = collect_record_sets(records)
         .into_iter()
-        .map(|package| {
-            // These are fixed up in `rewrite_packages` so we can just `unwrap` with impunity here.
-            let origin = package.repository.as_deref().unwrap().to_string();
-            let license = package.license.as_deref().unwrap().replace('/', " OR ");
-            let component = package.name;
-            let copyright = package
-                .metadata
-                .get(COPYRIGHT_KEY)
-                .unwrap_or_else(|| panic!("Copyright for {component} should have been set"))
-                .as_str()
-                .expect("Copyright is always set to a string")
-                .into();
-            Record {
-                component,
-                origin,
-                license,
-                copyright,
+        .flat_map(|(record, names)| reduce_names(record, names))
+        .collect();
+    result.sort_by(|a, b| a.component.cmp(&b.component));
+    result
+}
+
+// Extract the output record fields from a input package.
+fn package_to_record(package: Package) -> Record {
+    // These are fixed up in `rewrite_packages` so we can just `unwrap` with impunity here.
+    let origin = package.repository.as_deref().unwrap().to_string();
+    let license = package.license.as_deref().unwrap().replace('/', " OR ");
+    let component = package.name;
+    let copyright = package
+        .metadata
+        .get(COPYRIGHT_KEY)
+        .unwrap_or_else(|| panic!("Copyright for {component} should have been set"))
+        .as_str()
+        .expect("Copyright is always set to a string")
+        .into();
+    Record {
+        component,
+        origin,
+        license,
+        copyright,
+    }
+}
+
+// Collect the given records into sets having identical details except for the component names, which
+// are extracted into the hash set value.
+fn collect_record_sets(records: impl Iterator<Item = Record>) -> HashMap<Record, HashSet<String>> {
+    // Translate the packages into records, and deduplicate nearly identical records that differ
+    // only in the component names.
+    let mut intermediate: HashMap<Record, HashSet<String>> = HashMap::default();
+    for mut record in records {
+        let name = take(&mut record.component);
+        intermediate
+            .entry(record)
+            .or_insert_with(HashSet::default)
+            .insert(name);
+    }
+    intermediate
+}
+
+// This "rehydrates" the record that is missing a component name into potentially multiple records
+// using the set of component names, while attempting to reduce the set down to a single entry.
+fn reduce_names(mut record: Record, names: HashSet<String>) -> Vec<Record> {
+    if names.len() == 1 {
+        record.component = names.into_iter().next().unwrap();
+        vec![record]
+    } else {
+        // If one of the component names matches the repository suffix, use just that one record.
+        if let Some((_, suffix)) = record.origin.rsplit_once('/') {
+            if names.contains(suffix) {
+                record.component = suffix.into();
+                return vec![record];
             }
-        })
-        .collect()
+            if let Some(name) = suffix.strip_prefix("rust-") {
+                if names.contains(name) {
+                    record.component = name.into();
+                    return vec![record];
+                }
+            }
+            if let Some(name) = suffix.strip_suffix("-rs") {
+                if names.contains(name) {
+                    record.component = name.into();
+                    return vec![record];
+                }
+            }
+            // More common patterns may be added here as needed to reduce the license file.
+        }
+        // There is no obvious component name to use as the primary, so just include them all.
+        names
+            .into_iter()
+            .map(|component| Record {
+                component,
+                ..record.clone()
+            })
+            .collect()
+    }
 }
 
 // Dump the resulting CSV table of records.
