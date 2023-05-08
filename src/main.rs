@@ -210,32 +210,15 @@ fn build_everything() -> Result<Vec<Record>> {
 // Given a list of package IDs, look up the corresponding entry from the package list and return an
 // array of the results.
 fn lookup_deps(package_ids: HashSet<PackageId>, packages: Vec<Package>) -> Vec<Package> {
-    let packages: HashMap<_, _> = packages
+    let mut packages: HashMap<_, _> = packages
         .into_iter()
         .map(|package| (package.id.clone(), package))
         .collect();
-
-    collect_packages(package_ids, packages).flatten().collect()
-}
-
-// Collect packages based on their package Ids, grouped on their repository URLs.
-fn collect_packages(
-    package_ids: HashSet<PackageId>,
-    mut packages: HashMap<PackageId, Package>,
-) -> impl Iterator<Item = Vec<Package>> {
-    let packages = package_ids
+    package_ids
         .into_iter()
         .map(|id| packages.remove(&id).expect("Missing package {id:?}"))
-        .filter(|package| package.source.is_some());
-    let mut result: HashMap<String, Vec<Package>> = HashMap::default();
-    for package in packages {
-        let key = package
-            .repository
-            .clone()
-            .unwrap_or_else(|| panic!("Missing repository for {:?}", package.name));
-        result.entry(key).or_insert_with(Vec::new).push(package);
-    }
-    result.into_values()
+        .filter(|package| package.source.is_some())
+        .collect()
 }
 
 // Filter the list of dependencies to exclude those that would not be distributed in a built
