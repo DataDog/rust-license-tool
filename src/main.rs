@@ -210,32 +210,15 @@ fn build_everything() -> Result<Vec<Record>> {
 // Given a list of package IDs, look up the corresponding entry from the package list and return an
 // array of the results.
 fn lookup_deps(package_ids: HashSet<PackageId>, packages: Vec<Package>) -> Vec<Package> {
-    let packages: HashMap<_, _> = packages
+    let mut packages: HashMap<_, _> = packages
         .into_iter()
         .map(|package| (package.id.clone(), package))
         .collect();
-
-    collect_packages(package_ids, packages).flatten().collect()
-}
-
-// Collect packages based on their package Ids, grouped on their repository URLs.
-fn collect_packages(
-    package_ids: HashSet<PackageId>,
-    mut packages: HashMap<PackageId, Package>,
-) -> impl Iterator<Item = Vec<Package>> {
-    let packages = package_ids
+    package_ids
         .into_iter()
-        .map(|id| packages.remove(&id).expect("Missing package"))
-        .filter(|package| package.source.is_some());
-    let mut result: HashMap<String, Vec<Package>> = HashMap::default();
-    for package in packages {
-        let key = package
-            .repository
-            .clone()
-            .unwrap_or_else(|| panic!("Missing repository for {}", package.name));
-        result.entry(key).or_insert_with(Vec::new).push(package);
-    }
-    result.into_values()
+        .map(|id| packages.remove(&id).expect("Missing package {id:?}"))
+        .filter(|package| package.source.is_some())
+        .collect()
 }
 
 // Filter the list of dependencies to exclude those that would not be distributed in a built
@@ -291,7 +274,7 @@ fn package_to_record(package: Package) -> Record {
     let copyright = package
         .metadata
         .get(COPYRIGHT_KEY)
-        .unwrap_or_else(|| panic!("Copyright for {component} should have been set"))
+        .unwrap_or_else(|| panic!("Copyright for {component:?} should have been set"))
         .as_str()
         .expect("Copyright is always set to a string")
         .into();
@@ -368,39 +351,47 @@ fn output_table(records: Vec<Record>, writer: impl Write) -> Result<()> {
 
 // Rewrite package repository and check presence of licenses
 fn rewrite_packages(packages: &mut [Package], overrides: &Overrides) -> Result<()> {
-    let mut errors = false;
-    for package in packages {
-        let name = format!("{}-{}", package.name, package.version);
-
-        if let Some(opts) = overrides
-            .get(&name)
-            .or_else(|| overrides.get(&package.name))
-        {
-            opts.fixup(package);
-        }
-
-        // Don't rewrite local packages by skipping packages without a source.
-        if let Some(source) = &package.source {
-            if let Some(repo) = &mut package.repository {
-                *repo = strip_git(repo).to_owned();
-            } else if let Some(git) = source.repr.strip_prefix("git+") {
-                let base = git.find('?').map(|i| &git[..i]).unwrap_or(git);
-                package.repository = Some(strip_git(base).to_owned());
-            } else {
-                eprintln!("Package {name} is missing a repository");
-                errors = true;
-            }
-            if package.license.is_none() {
-                eprintln!("Package {name} is missing a license");
-                errors = true;
-            }
-        }
-    }
+    let errors = packages.iter_mut().fold(false, |errors, package| {
+        errors | rewrite_package(package, overrides)
+    });
     if errors {
         bail!("Could not fix up package details.")
     } else {
         Ok(())
     }
+}
+
+// Rewrite package details, pulling in overrides, to ensure packages with a source also have a
+// repository set to `Some`.
+fn rewrite_package(package: &mut Package, overrides: &Overrides) -> bool {
+    let name = format!("{}-{}", package.name, package.version);
+
+    if let Some(opts) = overrides
+        .get(&name)
+        .or_else(|| overrides.get(&package.name))
+    {
+        opts.fixup(package);
+    }
+
+    // Don't rewrite local packages by skipping packages without a source.
+    if let Some(source) = &package.source {
+        if let Some(repo) = &mut package.repository {
+            *repo = strip_git(repo).to_owned();
+        } else if let Some(git) = source.repr.strip_prefix("git+") {
+            let base = git.find('?').map(|i| &git[..i]).unwrap_or(git);
+            package.repository = Some(strip_git(base).to_owned());
+        } else if let Some(homepage) = package.homepage.clone() {
+            package.repository = Some(homepage);
+        } else {
+            eprintln!("Package {name} is missing a repository");
+            return true;
+        }
+        if package.license.is_none() {
+            eprintln!("Package {name} is missing a license");
+            return true;
+        }
+    }
+    false
 }
 
 fn strip_git(s: &str) -> &'_ str {
