@@ -87,7 +87,7 @@ struct Config {
     overrides: Overrides,
 }
 
-#[derive(Clone, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[derive(Clone, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "PascalCase")]
 struct Record {
     component: String,
@@ -152,33 +152,26 @@ impl Commands {
     }
 
     fn check(records: Vec<Record>) -> Result<()> {
-        let mut current: HashMap<String, Record> = match File::open(DEST_FILENAME) {
+        let mut current: HashSet<Record> = match File::open(DEST_FILENAME) {
             Err(error) if error.kind() == ErrorKind::NotFound => Default::default(),
             Err(error) => return Err(error).context(format!("Could not read {DEST_FILENAME:?}")),
             Ok(file) => csv::Reader::from_reader(file)
-                .into_deserialize()
-                .map(|record| record.map(|record: Record| (record.component.clone(), record)))
+                .into_deserialize::<Record>()
                 .collect::<Result<_, _>>()
                 .with_context(|| format!("Could not read current {DEST_FILENAME:?}"))?,
         };
         let mut errors = false;
         for record in records {
-            let component = &record.component;
-            if let Some(current) = current.remove(component) {
-                if current != record {
-                    println!("Record for {component:?} has changed.");
-                    errors = true;
-                }
-            } else {
-                println!("Missing record for {component:?}.");
+            if !current.remove(&record) {
+                println!("Record for {:?} is missing or changed.", record.component);
                 errors = true;
             }
         }
-        if !current.is_empty() {
-            for record in current.values() {
+        if !errors && !current.is_empty() {
+            for record in current {
                 println!("Extraneous record for {:?}.", record.component);
+                errors = true;
             }
-            errors = true;
         }
         if errors {
             bail!("Current {DEST_FILENAME:?} is not up to date.")
@@ -261,7 +254,7 @@ fn build_records(packages: Vec<Package>) -> Vec<Record> {
         .into_iter()
         .flat_map(|(record, names)| reduce_names(record, names))
         .collect();
-    result.sort_by(|a, b| a.component.cmp(&b.component));
+    result.sort();
     result
 }
 
