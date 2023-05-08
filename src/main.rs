@@ -380,6 +380,8 @@ fn rewrite_package(package: &mut Package, overrides: &Overrides) -> bool {
         } else if let Some(git) = source.repr.strip_prefix("git+") {
             let base = git.find('?').map(|i| &git[..i]).unwrap_or(git);
             package.repository = Some(strip_git(base).to_owned());
+        } else if let Some(homepage) = package.homepage.clone() {
+            package.repository = Some(homepage);
         } else {
             eprintln!("Package {name} is missing a repository");
             return true;
