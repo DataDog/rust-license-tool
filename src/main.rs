@@ -87,7 +87,7 @@ struct Config {
     overrides: Overrides,
 }
 
-#[derive(Clone, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[derive(Clone, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "PascalCase")]
 struct Record {
     component: String,
@@ -261,7 +261,7 @@ fn build_records(packages: Vec<Package>) -> Vec<Record> {
         .into_iter()
         .flat_map(|(record, names)| reduce_names(record, names))
         .collect();
-    result.sort_by(|a, b| a.component.cmp(&b.component));
+    result.sort();
     result
 }
 
