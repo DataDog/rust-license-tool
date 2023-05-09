@@ -23,6 +23,30 @@ file is required by the Datadog standards for releasing open source code.
 3. In your CI workflow, check that the licenses list file is up to date with:
    `rust-license-tool check`.
 
+## Configuration
+
+The license tool loads a configuration file at startup that may contain overrides or supplementary
+data for packages. This can be useful where a crate does not supply either a homepage or repository
+URL, or is missing an explicit license. The filename of this configuration file defaults to
+`license-tool.toml` but can be overridden with the `--config` command-line option.
+
+Example:
+
+```toml
+[overrides]
+# These crates do not specify a homepage in their metadata.
+
+"openssl-macros" = { origin = "https://github.com/sfackler/rust-openssl" }
+"serde_nanos" = { origin = "https://github.com/caspervonb/serde_nanos" }
+
+# `zerocopy` et al don't specify their licenses in the metadata, but the file contains the 2-clause
+# BSD terms. These should use versioned identifiers, as they could change from version to version
+# and so need to be reviewed after each version bump.
+
+"zerocopy-0.6.1" = { license = "BSD-2-Clause" }
+"zerocopy-derive-0.3.2" = { license = "BSD-2-Clause" }
+```
+
 ## Related Projects
 
 There are other existing projects that come close to providing the data required for the above
