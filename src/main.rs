@@ -58,6 +58,10 @@ static RE_COPYRIGHT_IGNORE: Lazy<Regex> = Lazy::new(|| {
 
 #[derive(Debug, Parser)]
 struct Args {
+    /// Load a configuration file containing package overrides. Defaults to "license-tool.toml".
+    #[arg(short, long, value_name = "FILENAME")]
+    config: Option<PathBuf>,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -97,14 +101,13 @@ struct Record {
 }
 
 impl Config {
-    fn load() -> Result<Option<Self>> {
-        match fs::read_to_string(CONFIG_FILENAME) {
-            Ok(text) => toml::from_str(&text)
-                .with_context(|| format!("Could not parse {CONFIG_FILENAME:?}")),
-            Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
-            Err(error) => {
-                Err(error).with_context(|| format!("Could not load from {CONFIG_FILENAME:?}"))
+    fn load(filename: &Path) -> Result<Option<Self>> {
+        match fs::read_to_string(filename) {
+            Ok(text) => {
+                toml::from_str(&text).with_context(|| format!("Could not parse {filename:?}"))
             }
+            Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error).with_context(|| format!("Could not load from {filename:?}")),
         }
     }
 }
@@ -130,7 +133,7 @@ impl Override {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    args.command.doit(build_everything()?)
+    args.command.doit(build_everything(args.config)?)
 }
 
 impl Commands {
@@ -181,8 +184,11 @@ impl Commands {
     }
 }
 
-fn build_everything() -> Result<Vec<Record>> {
-    let config = Config::load()?.unwrap_or_default();
+fn build_everything(config: Option<PathBuf>) -> Result<Vec<Record>> {
+    let filename = config
+        .as_deref()
+        .unwrap_or_else(|| Path::new(CONFIG_FILENAME));
+    let config = Config::load(filename)?.unwrap_or_default();
 
     let metadata = MetadataCommand::new()
         .verbose(true)
