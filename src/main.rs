@@ -436,7 +436,8 @@ fn lookup_copyrights(package: &mut Package) -> Result<String> {
     let mut source_path = PathBuf::from(&package.manifest_path);
     source_path.pop();
     if let Some(filename) = &package.license_file {
-        if let Some(copyright) = lookup_copyright(filename.as_std_path())? {
+        let license_path = source_path.join(filename);
+        if let Some(copyright) = lookup_copyright(&license_path)? {
             return Ok(copyright);
         }
     }
