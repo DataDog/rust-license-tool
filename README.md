@@ -8,13 +8,14 @@ file is required by the Datadog standards for releasing open source code.
 1. Install the tool using `cargo`:
 
 ```
-# cargo install --path .
-  Installing rust-license-tool v0.1.0 (/home/user/rust-license-tool)
+# cargo install --git https://github.com/DataDog/rust-license-tool
+    Updating git repository `https://github.com/DataDog/rust-license-tool`
+  Installing rust-license-tool v0.1.0 (https://github.com/DataDog/rust-license-tool#6871a407)
     Updating crates.io index
-   Compiling rust-license-tool v0.1.0 (/home/user/rust-license-tool)
+   Compiling rust-license-tool v0.1.0 (https://github.com/DataDog/rust-license-tool#6871a407)
     Finished release [optimized] target(s) in 2.56s
   Installing /home/user/.cargo/bin/rust-license-tool
-   Installed package `rust-license-tool v0.1.0 (/home/user/rust-license-tool)` (executable `rust-license-tool`)
+   Installed rust-license-tool v0.1.0 (https://github.com/DataDog/rust-license-tool#6871a407) (executable `rust-license-tool`)
 ```
 
 2. In your project directory, create the licenses list file with:
