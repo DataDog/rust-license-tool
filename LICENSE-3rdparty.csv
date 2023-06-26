@@ -11,6 +11,7 @@ clap_builder,https://github.com/clap-rs/clap,MIT OR Apache-2.0,The clap_builder 
 clap_derive,https://github.com/clap-rs/clap/tree/master/clap_derive,MIT OR Apache-2.0,The clap_derive Authors
 clap_lex,https://github.com/clap-rs/clap/tree/master/clap_lex,MIT OR Apache-2.0,The clap_lex Authors
 csv,https://github.com/BurntSushi/rust-csv,Unlicense OR MIT,Andrew Gallant <jamslam@gmail.com>
+equivalent,https://github.com/cuviper/equivalent,Apache-2.0 OR MIT,The equivalent Authors
 hashbrown,https://github.com/rust-lang/hashbrown,MIT OR Apache-2.0,Amanieu d'Antras <amanieu@gmail.com>
 heck,https://github.com/withoutboats/heck,MIT OR Apache-2.0,Without Boats <woboats@gmail.com>
 hex,https://github.com/KokaKiwi/rust-hex,MIT OR Apache-2.0,KokaKiwi <kokakiwi@kokakiwi.net>
