@@ -5,10 +5,12 @@ updates:
     schedule:
       interval: "daily"
       time: "04:00" # UTC
-    labels:
-      #- "domain: deps"
+    #labels:
+    #  - "domain: deps"
     commit-message:
       prefix: "chore(deps)"
+    reviewers:
+      - "bruceg"
     open-pull-requests-limit: 10
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -16,7 +18,7 @@ updates:
       interval: "daily"
     reviewers:
       - "bruceg"
-    labels:
-      - "domain: ci"
+    #labels:
+    #  - "domain: ci"
     commit-message:
       prefix: "chore(ci)"
