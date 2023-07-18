@@ -4,21 +4,16 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
-      time: "04:00" # UTC
-    #labels:
-    #  - "domain: deps"
     commit-message:
-      prefix: "chore(deps)"
+      prefix: "security"
     reviewers:
       - "bruceg"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 0
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "daily"
     reviewers:
       - "bruceg"
-    #labels:
-    #  - "domain: ci"
     commit-message:
-      prefix: "chore(ci)"
+      prefix: "chore"
