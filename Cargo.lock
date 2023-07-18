@@ -116,6 +116,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "dd-rust-license-tool"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "cargo_metadata",
+ "clap",
+ "csv",
+ "hex",
+ "once_cell",
+ "regex",
+ "serde",
+ "serde_json",
+ "toml",
+ "url",
+]
+
+[[package]]
 name = "equivalent"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -238,23 +255,6 @@ name = "regex-syntax"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2ab07dc67230e4a4718e70fd5c20055a4334b121f1f9db8fe63ef39ce9b8c846"
-
-[[package]]
-name = "rust-license-tool"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "cargo_metadata",
- "clap",
- "csv",
- "hex",
- "once_cell",
- "regex",
- "serde",
- "serde_json",
- "toml",
- "url",
-]
 
 [[package]]
 name = "ryu"

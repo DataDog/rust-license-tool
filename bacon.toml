@@ -1,0 +1,11 @@
+default_job = "check"
+
+[jobs.check]
+command = ["cargo", "clippy", "--color", "always"]
+need_stdout = false
+
+[jobs.run]
+command = ["cargo", "run", "--color", "always", "--", "check"]
+need_stdout = true
+need_stderr = true
+allow_warnings = true
