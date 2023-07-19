@@ -5,24 +5,13 @@ file is required by the Datadog standards for releasing open source code.
 
 ## Usage
 
-1. Install the tool using `cargo`:
-
-```
-# cargo install --git https://github.com/DataDog/rust-license-tool
-    Updating git repository `https://github.com/DataDog/rust-license-tool`
-  Installing rust-license-tool v0.1.0 (https://github.com/DataDog/rust-license-tool#6871a407)
-    Updating crates.io index
-   Compiling rust-license-tool v0.1.0 (https://github.com/DataDog/rust-license-tool#6871a407)
-    Finished release [optimized] target(s) in 2.56s
-  Installing /home/user/.cargo/bin/rust-license-tool
-   Installed rust-license-tool v0.1.0 (https://github.com/DataDog/rust-license-tool#6871a407) (executable `rust-license-tool`)
-```
+1. Install the tool using `cargo`: `cargo install dd-rust-license-tool`
 
 2. In your project directory, create the licenses list file with:
-   `rust-license-tool write`.
+   `dd-rust-license-tool write`.
 
 3. In your CI workflow, check that the licenses list file is up to date with:
-   `rust-license-tool check`.
+   `dd-rust-license-tool check`.
 
 ## Configuration
 
