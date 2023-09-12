@@ -16,7 +16,7 @@ strip = true
 
 [dependencies]
 anyhow = "1.0"
-cargo_metadata = "0.17"
+cargo_metadata = "0.18"
 clap = { version = "4.4.2", default-features = false, features = ["derive", "std", "help"] }
 csv = "1.2.2"
 hex = "0.4.3"
