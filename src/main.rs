@@ -443,7 +443,7 @@ fn lookup_copyrights(package: &mut Package) -> Result<String> {
     }
     for location in COPYRIGHT_LOCATIONS {
         let path = source_path.join(location);
-        if path.exists() {
+        if path.is_file() {
             if let Some(copyright) = lookup_copyright(&path)? {
                 return Ok(copyright);
             }
