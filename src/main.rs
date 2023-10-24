@@ -293,10 +293,7 @@ fn collect_record_sets(records: impl Iterator<Item = Record>) -> HashMap<Record,
     let mut intermediate: HashMap<Record, HashSet<String>> = HashMap::default();
     for mut record in records {
         let name = take(&mut record.component);
-        intermediate
-            .entry(record)
-            .or_insert_with(HashSet::default)
-            .insert(name);
+        intermediate.entry(record).or_default().insert(name);
     }
     intermediate
 }
