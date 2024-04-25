@@ -13,6 +13,12 @@ file is required by the Datadog standards for releasing open source code.
 3. In your CI workflow, check that the licenses list file is up to date with:
    `dd-rust-license-tool check`.
 
+Additionally you can pass the the following arguments to get the licenses for optional dependencies
+behind features:
+
+* `--features []`, `-f []`: comma separated list of features.
+* `--all-features`: activate all feature dependencies.
+
 ## Configuration
 
 The license tool loads a configuration file at startup that may contain overrides or supplementary

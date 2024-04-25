@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use cargo_metadata::{
-    DepKindInfo, DependencyKind, MetadataCommand, Node, Package, PackageId, Resolve,
+    CargoOpt, DepKindInfo, DependencyKind, MetadataCommand, Node, Package, PackageId, Resolve,
 };
 use clap::{Parser, Subcommand};
 use once_cell::sync::Lazy;
@@ -64,6 +64,12 @@ struct Args {
 
     #[command(subcommand)]
     command: Commands,
+
+    #[arg(short, long)]
+    features: Vec<String>,
+
+    #[arg(long)]
+    all_features: bool,
 }
 
 #[derive(Debug, Subcommand)]
@@ -133,7 +139,14 @@ impl Override {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    args.command.doit(build_everything(args.config)?)
+    let features: Option<CargoOpt> = if args.all_features {
+        Some(CargoOpt::AllFeatures)
+    } else if !args.features.is_empty() {
+        Some(CargoOpt::SomeFeatures(args.features))
+    } else {
+        None
+    };
+    args.command.doit(build_everything(args.config, features)?)
 }
 
 impl Commands {
@@ -184,16 +197,19 @@ impl Commands {
     }
 }
 
-fn build_everything(config: Option<PathBuf>) -> Result<Vec<Record>> {
+fn build_everything(config: Option<PathBuf>, features: Option<CargoOpt>) -> Result<Vec<Record>> {
     let filename = config
         .as_deref()
         .unwrap_or_else(|| Path::new(CONFIG_FILENAME));
     let config = Config::load(filename)?.unwrap_or_default();
 
-    let metadata = MetadataCommand::new()
-        .verbose(true)
-        .exec()
-        .context("Running `cargo metadata` failed")?;
+    let mut builder = MetadataCommand::new();
+    builder.verbose(true);
+    if let Some(feats) = features {
+        builder.features(feats);
+    }
+
+    let metadata = builder.exec().context("Running `cargo metadata` failed")?;
 
     let resolve = metadata
         .resolve
