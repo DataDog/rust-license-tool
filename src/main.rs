@@ -1,3 +1,5 @@
+#![allow(unknown_lints)]
+
 use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::{self, ErrorKind, Write};
@@ -386,6 +388,8 @@ fn rewrite_package(package: &mut Package, overrides: &Overrides) -> bool {
 
     // Don't rewrite local packages by skipping packages without a source.
     if let Some(source) = &package.source {
+        // Can't borrow `repo` as mutable after immutable borrow in order to use `.clone_into(repo)`.
+        #[allow(clippy::assigning_clones)]
         if let Some(repo) = &mut package.repository {
             *repo = strip_git(repo).to_owned();
         } else if let Some(git) = source.repr.strip_prefix("git+") {
