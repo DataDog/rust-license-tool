@@ -10,6 +10,7 @@ license = "MIT"
 authors = ["Datadog, Inc."]
 categories = ["command-line-utilities", "development-tools"]
 keywords = ["datadog", "license", "3rdparty"]
+rust-version = "1.74"
 
 [profile.release]
 strip = true
