@@ -23,44 +23,79 @@ env:
   PROFILE: debug
 
 jobs:
-  fmt:
+  test_versions:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust_version: ["1.74", "stable"]
     steps:
       - uses: actions/checkout@v4
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust_version }}
+          override: true
+          components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
-      - name: "fmt"
-        run: cargo fmt --check
 
-  clippy:
+      - name: "Check clippy"
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all-targets -- -D warnings
+
+      - name: "Check licenses"
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: -- check
+
+  check-format:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          components: rustfmt
       - uses: Swatinem/rust-cache@v2
-      - name: "clippy"
-        run: cargo clippy --all-targets -- -D warnings
+
+      - name: "Check format"
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all --check
 
   check-deny:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
       - uses: Swatinem/rust-cache@v2
-      - name: "install deny"
+
+      - name: "Install cargo-deny"
         run: cargo install --locked cargo-deny
-      - name: "check deny"
+      - name: "Check deny list"
         run: cargo deny check
 
-  check-licenses:
+  check-msrv:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
       - uses: Swatinem/rust-cache@v2
-      - name: "check licenses"
-        run: cargo run -- check
 
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: Swatinem/rust-cache@v2
-      - name: "test"
-        run: cargo test --workspace
+      - name: "Install cargo-msrv"
+        run: cargo install --locked cargo-msrv
+      - name: "Check MSRV"
+        run: cargo msrv verify
