@@ -64,6 +64,10 @@ struct Args {
     #[arg(short, long, value_name = "FILENAME")]
     config: Option<PathBuf>,
 
+    /// Path to Cargo.toml. Defaults to "Cargo.toml".
+    #[arg(long, value_name = "PATH")]
+    manifest_path: Option<PathBuf>,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -135,7 +139,8 @@ impl Override {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    args.command.doit(build_everything(args.config)?)
+    args.command
+        .doit(build_everything(args.config, args.manifest_path)?)
 }
 
 impl Commands {
@@ -186,14 +191,22 @@ impl Commands {
     }
 }
 
-fn build_everything(config: Option<PathBuf>) -> Result<Vec<Record>> {
+fn build_everything(
+    config: Option<PathBuf>,
+    manifest_path: Option<PathBuf>,
+) -> Result<Vec<Record>> {
     let filename = config
         .as_deref()
         .unwrap_or_else(|| Path::new(CONFIG_FILENAME));
     let config = Config::load(filename)?.unwrap_or_default();
 
+    let manifest_path = manifest_path
+        .as_deref()
+        .unwrap_or_else(|| Path::new("Cargo.toml"));
+
     let metadata = MetadataCommand::new()
         .verbose(true)
+        .manifest_path(manifest_path)
         .exec()
         .context("Running `cargo metadata` failed")?;
 
