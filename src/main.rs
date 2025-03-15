@@ -5,13 +5,13 @@ use std::fs::{self, File};
 use std::io::{self, ErrorKind, Write};
 use std::mem::take;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
 use anyhow::{bail, Context, Result};
 use cargo_metadata::{
     DepKindInfo, DependencyKind, MetadataCommand, Node, Package, PackageId, Resolve,
 };
 use clap::{Parser, Subcommand};
-use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -44,7 +44,7 @@ const COPYRIGHT_LOCATIONS: [&str; 17] = [
 ];
 
 // General match for anything that looks like a copyright declaration
-static RE_COPYRIGHT: Lazy<Regex> = Lazy::new(|| {
+static RE_COPYRIGHT: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)copyright\s+(?:©|\(c\)\s+)?(?:(?:[0-9 ,-]|present)+\s+)?(?:by\s+)?.*$")
         .unwrap()
 });
@@ -53,7 +53,7 @@ static RE_COPYRIGHT: Lazy<Regex> = Lazy::new(|| {
 // boilerplate license files.
 //
 // These match at the beginning of the copyright (the result of COPYRIGHT_RE).
-static RE_COPYRIGHT_IGNORE: Lazy<Regex> = Lazy::new(|| {
+static RE_COPYRIGHT_IGNORE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
     r"(?i)^(copyright(:? and license)?$|copyright (:?holder|owner|notice|license|statement)|Copyright & License -|copyright .yyyy. .name of copyright owner)").unwrap()
 });
