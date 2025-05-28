@@ -3,7 +3,6 @@
 use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::{self, ErrorKind, Write};
-use std::mem::take;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
@@ -11,6 +10,7 @@ use anyhow::{bail, Context, Result};
 use cargo_metadata::{
     DepKindInfo, DependencyKind, MetadataCommand, Node, Package, PackageId, Resolve,
 };
+use cargo_util_schemas::manifest::PackageName;
 use clap::{Parser, Subcommand};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -89,7 +89,7 @@ struct Manifest {
 
 #[derive(Deserialize)]
 struct ManifestPackage {
-    name: String,
+    name: PackageName,
 }
 
 #[derive(Default, Deserialize)]
@@ -100,7 +100,7 @@ struct Config {
 #[derive(Clone, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "PascalCase")]
 struct Record {
-    component: String,
+    component: PackageName,
     origin: String,
     license: String,
     copyright: String,
@@ -315,14 +315,16 @@ fn package_to_record(package: Package) -> Record {
     }
 }
 
+type RecordSet = HashMap<Record, HashSet<PackageName>>;
+
 // Collect the given records into sets having identical details except for the component names, which
 // are extracted into the hash set value.
-fn collect_record_sets(records: impl Iterator<Item = Record>) -> HashMap<Record, HashSet<String>> {
+fn collect_record_sets(records: impl Iterator<Item = Record>) -> RecordSet {
     // Translate the packages into records, and deduplicate nearly identical records that differ
     // only in the component names.
-    let mut intermediate: HashMap<Record, HashSet<String>> = HashMap::default();
-    for mut record in records {
-        let name = take(&mut record.component);
+    let mut intermediate = RecordSet::new();
+    for record in records {
+        let name = record.component.clone();
         intermediate.entry(record).or_default().insert(name);
     }
     intermediate
@@ -330,7 +332,7 @@ fn collect_record_sets(records: impl Iterator<Item = Record>) -> HashMap<Record,
 
 // This "rehydrates" the record that is missing a component name into potentially multiple records
 // using the set of component names, while attempting to reduce the set down to a single entry.
-fn reduce_names(mut record: Record, names: HashSet<String>) -> Vec<Record> {
+fn reduce_names(mut record: Record, names: HashSet<PackageName>) -> Vec<Record> {
     if names.len() == 1 {
         record.component = names.into_iter().next().unwrap();
         vec![record]
@@ -338,18 +340,18 @@ fn reduce_names(mut record: Record, names: HashSet<String>) -> Vec<Record> {
         // If one of the component names matches the repository suffix, use just that one record.
         if let Some((_, suffix)) = record.origin.rsplit_once('/') {
             if names.contains(suffix) {
-                record.component = suffix.into();
+                record.component = package_name(suffix);
                 return vec![record];
             }
             if let Some(name) = suffix.strip_prefix("rust-") {
                 if names.contains(name) {
-                    record.component = name.into();
+                    record.component = package_name(name);
                     return vec![record];
                 }
             }
             if let Some(name) = suffix.strip_suffix("-rs") {
                 if names.contains(name) {
-                    record.component = name.into();
+                    record.component = package_name(name);
                     return vec![record];
                 }
             }
@@ -364,6 +366,10 @@ fn reduce_names(mut record: Record, names: HashSet<String>) -> Vec<Record> {
             })
             .collect()
     }
+}
+
+fn package_name(name: impl Into<String>) -> PackageName {
+    PackageName::new(name.into()).expect("Invalid package name")
 }
 
 // Dump the resulting CSV table of records.
@@ -394,7 +400,7 @@ fn rewrite_package(package: &mut Package, overrides: &Overrides) -> bool {
 
     if let Some(opts) = overrides
         .get(&name)
-        .or_else(|| overrides.get(&package.name))
+        .or_else(|| overrides.get(&package.name.to_string()))
     {
         opts.fixup(package);
     }
