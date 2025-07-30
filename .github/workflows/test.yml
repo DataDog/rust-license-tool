@@ -95,6 +95,8 @@ jobs:
         run: cargo install --locked cargo-deny
       - name: "Check deny list"
         run: cargo deny check
+      - name: "Check if Cargo.lock changed"
+        run: git diff --exit-code
 
   check-msrv:
     runs-on: ubuntu-latest
