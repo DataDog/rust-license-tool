@@ -9,9 +9,6 @@ ignore = [
 [bans]
 multiple-versions = "deny"
 skip = [
-	# `cargo-metadata` depends on `thiserror@2` but indirectly depends on `thiserror@1`
-	"thiserror",
-	"thiserror-impl",
 ]
 
 [licenses]
