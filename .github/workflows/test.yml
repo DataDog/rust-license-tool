@@ -29,7 +29,7 @@ jobs:
       matrix:
         rust_version: ["1.82", "stable"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -65,7 +65,7 @@ jobs:
   check-format:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -83,7 +83,7 @@ jobs:
   check-deny:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -101,7 +101,7 @@ jobs:
   check-msrv:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
