@@ -59,6 +59,7 @@ static RE_COPYRIGHT_IGNORE: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 #[derive(Debug, Parser)]
+#[command(version)]
 struct Args {
     /// Load a configuration file containing package overrides. Defaults to "license-tool.toml".
     #[arg(short, long, value_name = "FILENAME")]
