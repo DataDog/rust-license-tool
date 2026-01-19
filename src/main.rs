@@ -246,7 +246,8 @@ fn filter_deps(resolve: Resolve) -> HashSet<PackageId> {
         .collect();
 
     let mut filtered = HashSet::new();
-    filter_deps_rec(resolve.root.as_ref(), &deps, &mut filtered);
+    let mut visited = HashSet::new();
+    filter_deps_rec(resolve.root.as_ref(), &deps, &mut filtered, &mut visited);
     filtered
 }
 
@@ -254,13 +255,14 @@ fn filter_deps_rec(
     node: Option<&PackageId>,
     deps: &HashMap<PackageId, Node>,
     packages: &mut HashSet<PackageId>,
+    visited: &mut HashSet<PackageId>,
 ) {
     match node {
-        Some(node) => filter_node_deps_rec(node, deps, packages),
+        Some(node) => filter_node_deps_rec(node, deps, packages, visited),
         None => {
             // We're dealing with a workspace crate, so we iterate over all dependencies.
             for pkg in deps.keys() {
-                filter_node_deps_rec(pkg, deps, packages);
+                filter_node_deps_rec(pkg, deps, packages, visited);
             }
         }
     }
@@ -270,12 +272,16 @@ fn filter_node_deps_rec(
     node: &PackageId,
     deps: &HashMap<PackageId, Node>,
     packages: &mut HashSet<PackageId>,
+    visited: &mut HashSet<PackageId>,
 ) {
+    if !visited.insert(node.clone()) {
+        return;
+    }
     let root = deps.get(node).unwrap();
     for node in &root.deps {
         if is_normal_dep(&node.dep_kinds) {
             packages.insert(node.pkg.clone());
-            filter_node_deps_rec(&node.pkg, deps, packages);
+            filter_node_deps_rec(&node.pkg, deps, packages, visited);
         }
     }
 }
