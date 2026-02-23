@@ -1,5 +1,9 @@
 # Change Log
 
+## Version 1.0.5
+
+- Added a `--version` option which displays the `dd-rust-license-tool` version.
+
 ## Version 1.0.4
 
 - Added a `--manifest-path` option which allows for running from a different
@@ -15,4 +19,3 @@
 
 - Fixed a crash if a dependency has a directory with any of the names in the list
   of license filenames.
-
