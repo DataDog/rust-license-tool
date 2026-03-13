@@ -8,7 +8,7 @@ use std::sync::LazyLock;
 
 use anyhow::{bail, Context, Result};
 use cargo_metadata::{
-    DepKindInfo, DependencyKind, MetadataCommand, Node, Package, PackageId, Resolve,
+    CargoOpt, DepKindInfo, DependencyKind, MetadataCommand, Node, Package, PackageId, Resolve,
 };
 use cargo_util_schemas::manifest::PackageName;
 use clap::{Parser, Subcommand};
@@ -207,6 +207,7 @@ fn build_everything(
 
     let metadata = MetadataCommand::new()
         .verbose(true)
+        .features(CargoOpt::AllFeatures)
         .manifest_path(manifest_path)
         .exec()
         .context("Running `cargo metadata` failed")?;
