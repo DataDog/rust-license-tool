@@ -1,5 +1,10 @@
 # Change Log
 
+## Version 1.0.6
+
+- Fixed an issue where dependencies from non-default features were missing from the generated license file.
+- Improved performance by memoizing visited package IDs.
+
 ## Version 1.0.5
 
 - Added a `--version` option which displays the `dd-rust-license-tool` version.
