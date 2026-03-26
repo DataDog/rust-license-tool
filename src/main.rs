@@ -5,6 +5,7 @@ use std::fs::{self, File};
 use std::io::{self, ErrorKind, Write};
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
+use std::time::Duration;
 
 use anyhow::{bail, Context, Result};
 use cargo_metadata::{
@@ -68,6 +69,10 @@ struct Args {
     /// Path to Cargo.toml. Defaults to "Cargo.toml".
     #[arg(long, value_name = "PATH")]
     manifest_path: Option<PathBuf>,
+
+    /// Skip checking for a newer version on crates.io.
+    #[arg(long)]
+    no_update_check: bool,
 
     #[command(subcommand)]
     command: Commands,
@@ -140,8 +145,49 @@ impl Override {
 
 fn main() -> Result<()> {
     let args = Args::parse();
+    if !args.no_update_check {
+        let _ = try_check_latest_version();
+    }
     args.command
         .doit(build_everything(args.config, args.manifest_path)?)
+}
+
+fn try_check_latest_version() -> Result<()> {
+    let current = env!("CARGO_PKG_VERSION");
+    let crate_name = env!("CARGO_PKG_NAME");
+    let url = format!("https://crates.io/api/v1/crates/{crate_name}");
+    let user_agent = format!("{crate_name}/{current}");
+
+    let agent = ureq::Agent::new_with_config(
+        ureq::config::Config::builder()
+            .timeout_global(Some(Duration::from_secs(5)))
+            .build(),
+    );
+
+    let mut response = agent
+        .get(&url)
+        .header("User-Agent", &user_agent)
+        .call()
+        .context("Failed to query crates.io")?;
+
+    let body: Value = response
+        .body_mut()
+        .read_json()
+        .context("Failed to parse crates.io response")?;
+
+    let latest = body["crate"]["max_version"]
+        .as_str()
+        .context("Missing version info from crates.io")?;
+
+    let current_ver = semver::Version::parse(current)?;
+    let latest_ver = semver::Version::parse(latest)?;
+
+    if latest_ver > current_ver {
+        eprintln!("Warning: {crate_name} is outdated ({current} -> {latest})");
+        eprintln!("  Upgrade with: cargo install {crate_name}");
+    }
+
+    Ok(())
 }
 
 impl Commands {
