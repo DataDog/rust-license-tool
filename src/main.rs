@@ -158,21 +158,16 @@ fn try_check_latest_version() -> Result<()> {
     let url = format!("https://crates.io/api/v1/crates/{crate_name}");
     let user_agent = format!("{crate_name}/{current}");
 
-    let agent = ureq::Agent::new_with_config(
-        ureq::config::Config::builder()
-            .timeout_global(Some(Duration::from_secs(5)))
-            .build(),
-    );
+    let agent = ureq::AgentBuilder::new()
+        .timeout(Duration::from_secs(5))
+        .build();
 
-    let mut response = agent
+    let body: Value = agent
         .get(&url)
-        .header("User-Agent", &user_agent)
+        .set("User-Agent", &user_agent)
         .call()
-        .context("Failed to query crates.io")?;
-
-    let body: Value = response
-        .body_mut()
-        .read_json()
+        .context("Failed to query crates.io")?
+        .into_json()
         .context("Failed to parse crates.io response")?;
 
     let latest = body["crate"]["max_version"]
