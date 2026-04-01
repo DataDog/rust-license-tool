@@ -72,7 +72,7 @@ struct Args {
 
     /// Skip checking for a newer version on crates.io.
     #[arg(long)]
-    no_update_check: bool,
+    no_upgrade_check: bool,
 
     #[command(subcommand)]
     command: Commands,
@@ -145,7 +145,7 @@ impl Override {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    if !args.no_update_check {
+    if !args.no_upgrade_check {
         let _ = try_check_latest_version();
     }
     args.command
