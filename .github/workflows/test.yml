@@ -29,23 +29,23 @@ jobs:
       matrix:
         rust_version: ["1.82", "stable"]
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # v1.0.7
         with:
           profile: minimal
           toolchain: ${{ matrix.rust_version }}
           override: true
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2.0.0
 
       - name: "Check clippy"
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # v1.0.3
         with:
           command: clippy
           args: --all-targets -- -D warnings
 
       - name: "Check licenses"
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # v1.0.3
         with:
           command: run
           args: -- check
@@ -65,17 +65,17 @@ jobs:
   check-format:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # v1.0.7
         with:
           profile: minimal
           toolchain: stable
           override: true
           components: rustfmt
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2.0.0
 
       - name: "Check format"
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # v1.0.3
         with:
           command: fmt
           args: --all --check
@@ -83,13 +83,13 @@ jobs:
   check-deny:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # v1.0.7
         with:
           profile: minimal
           toolchain: stable
           override: true
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2.0.0
 
       - name: "Install cargo-deny"
         run: cargo install --locked cargo-deny
@@ -101,13 +101,13 @@ jobs:
   check-msrv:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # v1.0.7
         with:
           profile: minimal
           toolchain: stable
           override: true
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2.0.0
 
       - name: "Install cargo-msrv"
         run: cargo install --locked cargo-msrv
