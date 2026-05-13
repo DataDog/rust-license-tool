@@ -44,4 +44,24 @@ read
 
 git tag v$version
 git push origin v$version
+
+echo "Waiting for release workflow to start (timeout: 10m)..."
+run_id=""
+deadline=$(( $(date +%s) + 600 ))
+while [ -z "$run_id" ]; do
+  if [ "$(date +%s)" -ge "$deadline" ]; then
+    echo "Error: release workflow did not start within 10 minutes."
+    exit 1
+  fi
+  sleep 5
+  run_id=$(gh run list --workflow=release.yml --branch="v$version" \
+    --json databaseId --jq '.[0].databaseId' 2>/dev/null || true)
+done
+
+echo "Release workflow started (run $run_id). Waiting for it to finish..."
+gh run watch "$run_id" --exit-status
+echo "Release workflow completed successfully."
+
+echo "Publishing to crates.io..."
 cargo publish
+echo "Done. Version $version published."
