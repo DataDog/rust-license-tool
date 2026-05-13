@@ -12,6 +12,14 @@ categories = ["command-line-utilities", "development-tools"]
 keywords = ["datadog", "license", "3rdparty"]
 rust-version = "1.82"
 
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ version }-{ target }.tar.gz"
+pkg-fmt = "tgz"
+
+[package.metadata.binstall.overrides.'cfg(target_os = "windows")']
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ version }-{ target }.zip"
+pkg-fmt = "zip"
+
 [profile.release]
 strip = true
 
