@@ -125,6 +125,10 @@ type Overrides = HashMap<String, Override>;
 struct Override {
     license: Option<String>,
     origin: Option<String>,
+    /// List this package even though it is a local (path or workspace) package, for example
+    /// vendored third-party code. Local packages are skipped otherwise.
+    #[serde(default)]
+    include: bool,
 }
 
 impl Override {
@@ -136,6 +140,13 @@ impl Override {
             package.repository = Some(origin.to_owned());
         }
     }
+}
+
+// Find the override for a package, preferring the `name-version` key over the `name` key.
+fn find_override<'a>(overrides: &'a Overrides, package: &Package) -> Option<&'a Override> {
+    overrides
+        .get(&format!("{}-{}", package.name, package.version))
+        .or_else(|| overrides.get(&package.name.to_string()))
 }
 
 fn main() -> Result<()> {
@@ -216,7 +227,7 @@ fn build_everything(
         .resolve
         .context("Metadata is missing a dependency tree")?;
     let filtered = filter_deps(resolve);
-    let mut packages = lookup_deps(filtered, metadata.packages);
+    let mut packages = lookup_deps(filtered, metadata.packages, &config.overrides);
     rewrite_packages(&mut packages, &config.overrides)?;
     fixup_names(&mut packages)?;
     lookup_all_copyrights(&mut packages)?;
@@ -224,8 +235,12 @@ fn build_everything(
 }
 
 // Given a list of package IDs, look up the corresponding entry from the package list and return an
-// array of the results.
-fn lookup_deps(package_ids: HashSet<PackageId>, packages: Vec<Package>) -> Vec<Package> {
+// array of the results. Local packages are skipped unless an override includes them.
+fn lookup_deps(
+    package_ids: HashSet<PackageId>,
+    packages: Vec<Package>,
+    overrides: &Overrides,
+) -> Vec<Package> {
     let mut packages: HashMap<_, _> = packages
         .into_iter()
         .map(|package| (package.id.clone(), package))
@@ -233,7 +248,10 @@ fn lookup_deps(package_ids: HashSet<PackageId>, packages: Vec<Package>) -> Vec<P
     package_ids
         .into_iter()
         .map(|id| packages.remove(&id).expect("Missing package {id:?}"))
-        .filter(|package| package.source.is_some())
+        .filter(|package| {
+            package.source.is_some()
+                || find_override(overrides, package).is_some_and(|opts| opts.include)
+        })
         .collect()
 }
 
@@ -401,37 +419,35 @@ fn rewrite_packages(packages: &mut [Package], overrides: &Overrides) -> Result<(
     }
 }
 
-// Rewrite package details, pulling in overrides, to ensure packages with a source also have a
-// repository set to `Some`.
+// Rewrite package details, pulling in overrides, to ensure packages have a repository and a license
+// set to `Some`.
 fn rewrite_package(package: &mut Package, overrides: &Overrides) -> bool {
     let name = format!("{}-{}", package.name, package.version);
 
-    if let Some(opts) = overrides
-        .get(&name)
-        .or_else(|| overrides.get(&package.name.to_string()))
-    {
+    if let Some(opts) = find_override(overrides, package) {
         opts.fixup(package);
     }
 
-    // Don't rewrite local packages by skipping packages without a source.
-    if let Some(source) = &package.source {
-        // Can't borrow `repo` as mutable after immutable borrow in order to use `.clone_into(repo)`.
-        #[allow(clippy::assigning_clones)]
-        if let Some(repo) = &mut package.repository {
-            *repo = strip_git(repo).to_owned();
-        } else if let Some(git) = source.repr.strip_prefix("git+") {
-            let base = git.find('?').map(|i| &git[..i]).unwrap_or(git);
-            package.repository = Some(strip_git(base).to_owned());
-        } else if let Some(homepage) = package.homepage.clone() {
-            package.repository = Some(homepage);
-        } else {
-            eprintln!("Package {name} is missing a repository");
-            return true;
-        }
-        if package.license.is_none() {
-            eprintln!("Package {name} is missing a license");
-            return true;
-        }
+    // Can't borrow `repo` as mutable after immutable borrow in order to use `.clone_into(repo)`.
+    #[allow(clippy::assigning_clones)]
+    if let Some(repo) = &mut package.repository {
+        *repo = strip_git(repo).to_owned();
+    } else if let Some(git) = package
+        .source
+        .as_ref()
+        .and_then(|source| source.repr.strip_prefix("git+"))
+    {
+        let base = git.find('?').map(|i| &git[..i]).unwrap_or(git);
+        package.repository = Some(strip_git(base).to_owned());
+    } else if let Some(homepage) = package.homepage.clone() {
+        package.repository = Some(homepage);
+    } else {
+        eprintln!("Package {name} is missing a repository");
+        return true;
+    }
+    if package.license.is_none() {
+        eprintln!("Package {name} is missing a license");
+        return true;
     }
     false
 }

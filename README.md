@@ -35,6 +35,12 @@ Example:
 
 "zerocopy-0.6.1" = { license = "BSD-2-Clause" }
 "zerocopy-derive-0.3.2" = { license = "BSD-2-Clause" }
+
+# Local (path or workspace) packages are skipped unless they are included. Use this for vendored
+# third-party code. The package must specify a repository (or homepage) and a license, either in
+# its metadata or in the override.
+
+"vendored-crate" = { include = true }
 ```
 
 ## Related Projects
