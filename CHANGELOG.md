@@ -1,5 +1,10 @@
 # Change Log
 
+## Unreleased
+
+- Added an `include` override option which adds a local (path or workspace) package, for example
+  vendored third-party code, to the generated license file.
+
 ## Version 1.0.6
 
 - Fixed an issue where dependencies from non-default features were missing from the generated license file.
